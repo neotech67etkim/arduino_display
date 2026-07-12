@@ -80,20 +80,45 @@ This is a [PlatformIO](https://platformio.org/) project.
 
 1. Install the [PlatformIO IDE extension](https://platformio.org/install/ide?install=vscode)
    for VS Code, or the `pio` CLI.
-2. Copy `include/config.example.h` to `include/config.h` and fill in:
-   - `WIFI_SSID` / `WIFI_PASSWORD`
-   - `NIGHTSCOUT_URL` — your site, starting with `https://`, no trailing slash
-   - `NIGHTSCOUT_TOKEN` — a read-only token if your site requires one
-     (Nightscout Admin Tools -> Subjects). Leave `""` if not needed.
-   - Alarm thresholds, refresh interval, mg/dL vs mmol/L, brightness, etc.
+2. Copy `include/config.example.h` to `include/config.h`.
+   `include/config.h` is gitignored so nothing you put in it gets committed.
 
-   `include/config.h` is gitignored so your credentials never get committed.
+   Everything in it (Wi-Fi, Nightscout URL/token, thresholds, brightness,
+   scroll speed) is only the **first-boot default** — the real, persistent
+   copy of these settings lives in flash and is edited from the web config
+   page (below) without ever re-flashing the device. You can leave
+   `WIFI_SSID`/`WIFI_PASSWORD`/`NIGHTSCOUT_URL` blank in `config.h` and set
+   everything from the web page instead if you'd rather not put Wi-Fi
+   credentials in a file at all.
 3. Connect the ESP32-C3 over USB and build/upload:
 
    ```sh
    pio run -t upload
    pio device monitor
    ```
+
+## Web Configuration
+
+The device always runs its own Wi-Fi access point in addition to (optionally)
+being joined to your home network, so the config page is reachable no matter
+what:
+
+1. Connect your phone/laptop to Wi-Fi network **`GlucoseDisplay-Setup`**
+   (password `glucose123` — change `AP_SSID`/`AP_PASSWORD` in `config.h`
+   before flashing if you want different ones).
+2. Open **`http://192.168.4.1`** in a browser.
+3. Fill in your home Wi-Fi SSID/password, Nightscout URL/token, alarm
+   thresholds, brightness, and scroll speed, then **Save & Restart**.
+
+The device reboots, joins your home Wi-Fi, and starts polling Nightscout —
+while still keeping the `GlucoseDisplay-Setup` AP up, so you can always get
+back to this page (e.g. `http://192.168.4.1`, or the device's normal IP
+shown at the top of the page) to change settings later without re-flashing.
+
+If the saved Wi-Fi credentials ever stop working (password changed, moved
+to a new router), the matrix scrolls a `SETUP: WiFi '...' -> 192.168.4.1`
+message and keeps retrying the saved network in the background — connect to
+the AP and update the credentials the same way.
 
 ## Behavior
 
@@ -103,11 +128,15 @@ This is a [PlatformIO](https://platformio.org/) project.
 - Appends `LOW` / `HIGH` when outside the configured thresholds, or `OLD`
   when the last Nightscout entry is older than `STALE_MINUTES` (sensor/upload
   may have stopped). In any of these states the display blinks.
-- Automatically reconnects Wi-Fi if the connection drops.
+- Automatically retries Wi-Fi in the background if the connection drops,
+  without freezing the display.
 
 ## Libraries used
 
 - [MD_Parola](https://github.com/MajicDesigns/MD_Parola) / [MD_MAX72XX](https://github.com/MajicDesigns/MD_MAX72XX) — LED matrix driver + text/scrolling
 - [ArduinoJson](https://arduinojson.org/) — parsing the Nightscout API response
+- `WebServer` / `Preferences` — bundled with the ESP32 Arduino core, used for
+  the web config page and persisting settings to flash (NVS)
 
-Both are pulled automatically by PlatformIO via `lib_deps` in `platformio.ini`.
+MD_Parola/MD_MAX72XX and ArduinoJson are pulled automatically by PlatformIO
+via `lib_deps` in `platformio.ini`.
