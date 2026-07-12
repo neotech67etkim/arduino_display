@@ -9,26 +9,52 @@ confirm readings on your CGM app/receiver before making treatment decisions.
 
 ## Hardware
 
-- ESP32-C3 dev board (e.g. ESP32-C3-DevKitM-1 / DevKitC-02, "Super Mini", etc.)
+- ESP32-C3 dev board — this project is being developed against an
+  **ESP32-C3 "Super Mini"** board, pinout below
 - MAX7219 8x32 LED dot matrix module (4 chained 8x8 "FC-16" style modules)
 - 5V power supply capable of ~500mA+ for the matrix at full brightness
+
+### ESP32-C3 Super Mini pinout
+
+Silkscreen labels on the back of the board, USB-C at the top:
+
+```
+        [ USB-C ]
+ 5V  o          o  5
+  G  o          o  6
+3.3  o          o  7
+  4  o          o  8
+  3  o          o  9
+  2  o          o  10
+  1  o          o  20
+  0  o          o  21
+```
+
+`BOOT` and `RST` buttons sit next to the USB-C port. Notes for this board:
+- `GPIO9` is the BOOT strapping pin — don't wire anything to it, it selects
+  boot mode at power-up.
+- `GPIO8` usually drives the onboard WS2812 status LED on this board revision
+  — avoid it for other peripherals.
+- If a first upload doesn't get recognized, hold `BOOT`, tap `RST`, then
+  release `BOOT` to force download mode before retrying.
 
 ## Wiring
 
 | MAX7219 module | ESP32-C3 pin |
 |-----------------|--------------|
 | VCC             | 5V           |
-| GND             | GND          |
+| GND             | GND (`G`)    |
 | DIN             | GPIO5        |
 | CS              | GPIO6        |
 | CLK             | GPIO4        |
 
 Notes:
-- Power the matrix from 5V (e.g. the board's USB 5V pin), not 3V3 — a 32-LED
-  matrix can pull more current than the onboard 3.3V regulator supplies.
-  Share a common GND with the ESP32-C3.
+- Power the matrix from the board's `5V` pin, not `3.3` — a 32-LED matrix can
+  pull more current than the onboard 3.3V regulator supplies. Share a common
+  ground with the ESP32-C3.
 - Pins are defined in `src/main.cpp` (`CLK_PIN`, `DATA_PIN`, `CS_PIN`) and can
-  be changed to any free GPIO if GPIO4/5/6 are already in use on your board.
+  be changed to any free GPIO if GPIO4/5/6 are already in use on your board
+  (avoid GPIO8/GPIO9 per the notes above).
 - If the text appears mirrored, upside down, or the modules are in the wrong
   order, change `HARDWARE_TYPE` in `src/main.cpp` between `FC16_HW` (most
   common for cheap 4-in-1 boards), `PAROLA_HW`, `GENERIC_HW`, or `ICSTATION_HW`
