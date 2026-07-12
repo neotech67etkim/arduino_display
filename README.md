@@ -56,9 +56,19 @@ Notes:
   be changed to any free GPIO if GPIO4/5/6 are already in use on your board
   (avoid GPIO8/GPIO9 per the notes above).
 - If the text appears mirrored, upside down, or the modules are in the wrong
-  order, change `HARDWARE_TYPE` in `src/main.cpp` between `FC16_HW` (most
-  common for cheap 4-in-1 boards), `PAROLA_HW`, `GENERIC_HW`, or `ICSTATION_HW`
-  until it renders correctly.
+  order, change `HARDWARE_TYPE` in `src/main.cpp` between `GENERIC_HW`
+  (default here, for individually-chained 8x8 breakout modules), `FC16_HW`
+  (fused 4-in-1 boards), `PAROLA_HW`, or `ICSTATION_HW` until it renders
+  correctly.
+
+## Examples
+
+`examples/wifi_text_scroll/` — a standalone demo (not built by
+`platformio.ini`) adapted from the MD_Parola library examples: type a
+message into a web page served by the ESP32-C3 and it scrolls on the
+matrix. Useful for bring-up/testing the display and wiring before running
+the full Nightscout client. Open it directly in the Arduino IDE, or build
+it with PlatformIO by pointing `src_dir` at that folder.
 
 ## Software setup
 
