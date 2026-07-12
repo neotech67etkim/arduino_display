@@ -56,32 +56,41 @@ Notes:
 - Power the matrix from the board's `5V` pin, not `3.3` — a 32-LED matrix can
   pull more current than the onboard 3.3V regulator supplies. Share a common
   ground with the ESP32-C3.
-- Pins are defined in `src/main.cpp` (`CLK_PIN`, `DATA_PIN`, `CS_PIN`) and can
-  be changed to any free GPIO if GPIO4/5/6 are already in use on your board
-  (avoid GPIO8/GPIO9 per the notes above).
+- Pins are defined in `arduino_display.ino` (`CLK_PIN`, `DATA_PIN`, `CS_PIN`)
+  and can be changed to any free GPIO if GPIO4/5/6 are already in use on your
+  board (avoid GPIO8/GPIO9 per the notes above).
 - If the text appears mirrored, upside down, or the modules are in the wrong
-  order, change `HARDWARE_TYPE` in `src/main.cpp` between `GENERIC_HW`
+  order, change `HARDWARE_TYPE` in `arduino_display.ino` between `GENERIC_HW`
   (default here, for individually-chained 8x8 breakout modules), `FC16_HW`
   (fused 4-in-1 boards), `PAROLA_HW`, or `ICSTATION_HW` until it renders
   correctly.
 
 ## Examples
 
-`examples/wifi_text_scroll/` — a standalone demo (not built by
-`platformio.ini`) adapted from the MD_Parola library examples: type a
-message into a web page served by the ESP32-C3 and it scrolls on the
-matrix. Useful for bring-up/testing the display and wiring before running
-the full Nightscout client. Open it directly in the Arduino IDE, or build
-it with PlatformIO by pointing `src_dir` at that folder.
+`examples/wifi_text_scroll/` — a standalone demo: type a message into a web
+page served by the ESP32-C3 and it scrolls on the matrix. Useful for
+bring-up/testing the display and wiring before running the full Nightscout
+client. Open `examples/wifi_text_scroll/wifi_text_scroll.ino` directly in
+the Arduino IDE.
 
 ## Software setup
 
-This is a [PlatformIO](https://platformio.org/) project.
+This is an Arduino IDE project — `arduino_display.ino` is the main sketch
+(the folder name must match the `.ino` filename, which is why the repo is
+laid out this way).
 
-1. Install the [PlatformIO IDE extension](https://platformio.org/install/ide?install=vscode)
-   for VS Code, or the `pio` CLI.
-2. Copy `include/config.example.h` to `include/config.h`.
-   `include/config.h` is gitignored so nothing you put in it gets committed.
+1. In the Arduino IDE, install ESP32 board support: **File > Preferences**,
+   add `https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json`
+   to "Additional boards manager URLs", then **Tools > Board > Boards
+   Manager**, search `esp32`, install the Espressif package.
+2. **Tools > Board** → select `ESP32C3 Dev Module`.
+3. **Tools > Library Manager**, install:
+   - `MD_Parola` (and its dependency `MD_MAX72XX`, both by majicDesigns)
+   - `ArduinoJson` (by Benoit Blanchon)
+4. Open `arduino_display.ino` (**File > Open**, browse to this repo folder).
+5. Copy `config.example.h` to `config.h` (same folder, appears as a second
+   tab in the IDE). `config.h` is gitignored so nothing you put in it gets
+   committed.
 
    Everything in it (Wi-Fi, Nightscout URL/token, thresholds, brightness,
    scroll speed) is only the **first-boot default** — the real, persistent
@@ -90,12 +99,9 @@ This is a [PlatformIO](https://platformio.org/) project.
    `WIFI_SSID`/`WIFI_PASSWORD`/`NIGHTSCOUT_URL` blank in `config.h` and set
    everything from the web page instead if you'd rather not put Wi-Fi
    credentials in a file at all.
-3. Connect the ESP32-C3 over USB and build/upload:
-
-   ```sh
-   pio run -t upload
-   pio device monitor
-   ```
+6. **Tools > USB CDC On Boot** → `Enabled` (required on native-USB boards
+   like the Super Mini for `Serial`/Serial Monitor to work at all).
+7. Upload, then **Tools > Serial Monitor** at `115200` baud to watch it boot.
 
 ## Web Configuration
 
@@ -133,10 +139,7 @@ the AP and update the credentials the same way.
 
 ## Libraries used
 
-- [MD_Parola](https://github.com/MajicDesigns/MD_Parola) / [MD_MAX72XX](https://github.com/MajicDesigns/MD_MAX72XX) — LED matrix driver + text/scrolling
-- [ArduinoJson](https://arduinojson.org/) — parsing the Nightscout API response
-- `WebServer` / `Preferences` — bundled with the ESP32 Arduino core, used for
-  the web config page and persisting settings to flash (NVS)
-
-MD_Parola/MD_MAX72XX and ArduinoJson are pulled automatically by PlatformIO
-via `lib_deps` in `platformio.ini`.
+- [MD_Parola](https://github.com/MajicDesigns/MD_Parola) / [MD_MAX72XX](https://github.com/MajicDesigns/MD_MAX72XX) — LED matrix driver + text/scrolling (install via Library Manager)
+- [ArduinoJson](https://arduinojson.org/) — parsing the Nightscout API response (install via Library Manager)
+- `WiFi` / `WebServer` / `Preferences` / `HTTPClient` — bundled with the ESP32
+  board package, no separate install needed

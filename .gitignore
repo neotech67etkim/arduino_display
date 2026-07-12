@@ -1,8 +1,4 @@
-.pio/
-.vscode/
-.pioenvs/
-.piolibdeps/
-.clang_complete
-.gcc-flags.json
+build/
+*.hex
 
-include/config.h
+config.h

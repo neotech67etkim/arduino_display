@@ -4,7 +4,7 @@
 //   MAX7219 VCC -> 5V   GND -> GND
 //   MAX7219 DIN -> GPIO5   CLK -> GPIO4   CS -> GPIO6
 //
-// Before building: copy include/config.example.h to include/config.h.
+// Before building: copy config.example.h to config.h (same folder as this .ino).
 // Wi-Fi/Nightscout/display settings there are only the *initial* defaults —
 // once saved through the web config page they live in flash (NVS) and take
 // priority. See README.md "Web Configuration" for how to reach the page.
