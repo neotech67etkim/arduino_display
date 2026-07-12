@@ -11,30 +11,34 @@ confirm readings on your CGM app/receiver before making treatment decisions.
 
 - ESP32-C3 dev board — this project is being developed against an
   **ESP32-C3 "Super Mini"** board, pinout below
-- MAX7219 8x32 LED dot matrix module (4 chained 8x8 "FC-16" style modules)
+- MAX7219 8x8 LED dot matrix modules, individually chained (separate
+  VCC/GND/DIN/CS/CLK and VCC/GND/DOUT/CS/CLK headers) — 4 of them chained
+  make the 8x32 display
 - 5V power supply capable of ~500mA+ for the matrix at full brightness
 
 ### ESP32-C3 Super Mini pinout
 
-Silkscreen labels on the back of the board, USB-C at the top:
+From the board's reference pinout diagram, USB-C at the top:
 
-```
-        [ USB-C ]
- 5V  o          o  5
-  G  o          o  6
-3.3  o          o  7
-  4  o          o  8
-  3  o          o  9
-  2  o          o  10
-  1  o          o  20
-  0  o          o  21
-```
+| Left pin | Function      | | Right pin | Function        |
+|----------|---------------|-|-----------|-----------------|
+| 5V       | 5V            | | 5         | GPIO5 (A5, MISO)|
+| G        | GND           | | 6         | GPIO6 (MOSI)    |
+| 3.3      | 3V3           | | 7         | GPIO7 (SS)      |
+| 4        | GPIO4 (A4, SCK)| | 8        | GPIO8 (SDA)     |
+| 3        | GPIO3 (A3)    | | 9         | GPIO9 (SCL)     |
+| 2        | GPIO2 (A2)    | | 10        | GPIO10          |
+| 1        | GPIO1 (A1)    | | 20        | GPIO20 (RX)     |
+| 0        | GPIO0 (A0)    | | 21        | GPIO21 (TX)     |
 
 `BOOT` and `RST` buttons sit next to the USB-C port. Notes for this board:
-- `GPIO9` is the BOOT strapping pin — don't wire anything to it, it selects
-  boot mode at power-up.
-- `GPIO8` usually drives the onboard WS2812 status LED on this board revision
-  — avoid it for other peripherals.
+- `GPIO9` is the BOOT strapping pin (also labeled SCL by default) — don't
+  wire anything to it, it selects boot mode at power-up.
+- `GPIO8` is the default SDA pin and on many Super Mini revisions also
+  drives the onboard WS2812 status LED — avoid it for other peripherals.
+- `GPIO0`-`GPIO5` double as analog inputs (A0-A5) if this project ever needs
+  a button, buzzer, or sensor.
+- `GPIO20`/`GPIO21` are the UART0 RX/TX pins.
 - If a first upload doesn't get recognized, hold `BOOT`, tap `RST`, then
   release `BOOT` to force download mode before retrying.
 
