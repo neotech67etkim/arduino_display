@@ -103,6 +103,23 @@ laid out this way).
    like the Super Mini for `Serial`/Serial Monitor to work at all).
 7. Upload, then **Tools > Serial Monitor** at `115200` baud to watch it boot.
 
+### Command-line alternative (arduino-cli)
+
+If you'd rather skip the IDE entirely — e.g. to drive the whole
+compile/upload/debug loop from a terminal, or so a locally-running Claude
+Code session can do it directly — `scripts/` has PowerShell wrappers around
+[arduino-cli](https://arduino.github.io/arduino-cli/):
+
+```powershell
+.\scripts\setup.ps1              # one-time: installs ESP32 core + libraries
+arduino-cli board list           # find your COM port
+.\scripts\flash.ps1 -Port COM4   # compile, upload, open serial monitor
+```
+
+See `CLAUDE.md` for the full command reference and project-specific gotchas
+(USB CDC On Boot, wiring, hardware type, etc.) that a Claude Code session
+running on your machine would want up front.
+
 ## Web Configuration
 
 The device always runs its own Wi-Fi access point in addition to (optionally)
