@@ -48,8 +48,8 @@ From the board's reference pinout diagram, USB-C at the top:
 |-----------------|--------------|
 | VCC             | 5V           |
 | GND             | GND (`G`)    |
-| DIN             | GPIO5        |
-| CS              | GPIO6        |
+| DIN             | GPIO6        |
+| CS              | GPIO7        |
 | CLK             | GPIO4        |
 
 Notes:
@@ -57,7 +57,7 @@ Notes:
   pull more current than the onboard 3.3V regulator supplies. Share a common
   ground with the ESP32-C3.
 - Pins are defined in `arduino_display.ino` (`CLK_PIN`, `DATA_PIN`, `CS_PIN`)
-  and can be changed to any free GPIO if GPIO4/5/6 are already in use on your
+  and can be changed to any free GPIO if GPIO4/6/7 are already in use on your
   board (avoid GPIO8/GPIO9 per the notes above).
 - If the text appears mirrored, upside down, or the modules are in the wrong
   order, change `HARDWARE_TYPE` in `arduino_display.ino` between `GENERIC_HW`

@@ -2,7 +2,7 @@
 //
 // Wiring (see README.md for the full table):
 //   MAX7219 VCC -> 5V   GND -> GND
-//   MAX7219 DIN -> GPIO5   CLK -> GPIO4   CS -> GPIO6
+//   MAX7219 DIN -> GPIO6   CLK -> GPIO4   CS -> GPIO7
 //
 // Before building: copy config.example.h to config.h (same folder as this .ino).
 // Wi-Fi/Nightscout/display settings there are only the *initial* defaults —
@@ -29,8 +29,8 @@
 #define MAX_DEVICES   4
 
 #define CLK_PIN  4
-#define DATA_PIN 5
-#define CS_PIN   6
+#define DATA_PIN 6
+#define CS_PIN   7
 
 MD_Parola P = MD_Parola(HARDWARE_TYPE, DATA_PIN, CLK_PIN, CS_PIN, MAX_DEVICES);
 WebServer webServer(80);

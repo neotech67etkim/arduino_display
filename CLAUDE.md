@@ -65,7 +65,7 @@ page once it's running (see README "Web Configuration").
   individually-chained 8x8 breakout modules (separate DIN/DOUT headers), not
   a fused 4-in-1 "FC-16" board. If display output is mirrored/reordered, try
   `FC16_HW`/`PAROLA_HW`/`ICSTATION_HW` instead.
-- Wiring is CLK→GPIO4, DIN→GPIO5, CS→GPIO6 (software/bit-banged SPI — the
+- Wiring is CLK→GPIO4, DIN→GPIO6, CS→GPIO7 (software/bit-banged SPI — the
   ESP32-C3 has no VSPI/HSPI split like classic ESP32, so arbitrary GPIOs are
   used rather than hardware-SPI default pins).
 - Never hot-plug the DIN/CLK/CS wires while the board is powered — it can
