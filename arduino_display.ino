@@ -150,7 +150,10 @@ static void startWiFi() {
 
   unsigned long start = millis();
   while (WiFi.status() != WL_CONNECTED && millis() - start < 8000) {
-    delay(250);
+    if (P.displayAnimate()) {
+      P.displayReset();
+    }
+    delay(10);
   }
   lastStaAttemptMs = millis();
 }
@@ -349,7 +352,7 @@ void setup() {
   P.setIntensity(settings.brightness);
   P.setTextAlignment(PA_CENTER);
   P.displayClear();
-  startScroll("CONNECTING");
+  startScroll("INITIALIZING...");
 
   startWiFi();
   setupWebServer();
@@ -357,6 +360,7 @@ void setup() {
   if (WiFi.status() == WL_CONNECTED) {
     staConnected = true;
     configTime(0, 0, "pool.ntp.org", "time.nist.gov");
+    startScroll("CONNECTED - FETCHING...");
   } else {
     char setupMsg[96];
     snprintf(setupMsg, sizeof(setupMsg), "SETUP: WiFi '%s' -> %s", AP_SSID, WiFi.softAPIP().toString().c_str());
