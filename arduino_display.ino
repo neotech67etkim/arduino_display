@@ -25,7 +25,7 @@
 // headers, jumpered DOUT->DIN between boards) typically need GENERIC_HW.
 // A fused 4-in-1 "FC-16" board needs FC16_HW instead. If text shows
 // mirrored, upside-down, or out of order, try PAROLA_HW or ICSTATION_HW.
-#define HARDWARE_TYPE MD_MAX72XX::GENERIC_HW
+#define HARDWARE_TYPE MD_MAX72XX::FC16_HW
 #define MAX_DEVICES   4
 
 #define CLK_PIN  4

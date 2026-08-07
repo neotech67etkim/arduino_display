@@ -60,10 +60,10 @@ Notes:
   and can be changed to any free GPIO if GPIO4/6/7 are already in use on your
   board (avoid GPIO8/GPIO9 per the notes above).
 - If the text appears mirrored, upside down, or the modules are in the wrong
-  order, change `HARDWARE_TYPE` in `arduino_display.ino` between `GENERIC_HW`
-  (default here, for individually-chained 8x8 breakout modules), `FC16_HW`
-  (fused 4-in-1 boards), `PAROLA_HW`, or `ICSTATION_HW` until it renders
-  correctly.
+  order, change `HARDWARE_TYPE` in `arduino_display.ino` between `FC16_HW`
+  (default here, confirmed working on this build), `GENERIC_HW`
+  (individually-chained 8x8 breakout modules), `PAROLA_HW`, or `ICSTATION_HW`
+  until it renders correctly.
 
 ## Examples
 

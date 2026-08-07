@@ -61,10 +61,11 @@ page once it's running (see README "Web Configuration").
 - **USB CDC On Boot must be Enabled** (or `CDCOnBoot=cdc` in the FQBN) — this
   board has no USB-serial bridge chip; without it, `Serial`/Serial Monitor
   produces nothing at all, which looks like a hang but isn't.
-- `HARDWARE_TYPE` is `MD_MAX72XX::GENERIC_HW` — the actual hardware is
-  individually-chained 8x8 breakout modules (separate DIN/DOUT headers), not
-  a fused 4-in-1 "FC-16" board. If display output is mirrored/reordered, try
-  `FC16_HW`/`PAROLA_HW`/`ICSTATION_HW` instead.
+- `HARDWARE_TYPE` is `MD_MAX72XX::FC16_HW` — confirmed working (renders
+  correctly) on this build even though the modules are individually-chained
+  8x8 breakout boards rather than a fused 4-in-1 "FC-16" board; `GENERIC_HW`
+  produced scrambled/out-of-order output on this hardware. If a future build
+  renders wrong, try `GENERIC_HW`/`PAROLA_HW`/`ICSTATION_HW` instead.
 - Wiring is CLK→GPIO4, DIN→GPIO6, CS→GPIO7 (software/bit-banged SPI — the
   ESP32-C3 has no VSPI/HSPI split like classic ESP32, so arbitrary GPIOs are
   used rather than hardware-SPI default pins).
