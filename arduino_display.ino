@@ -136,10 +136,25 @@ static void startScroll(const char *text) {
 // channel, which made the AP flaky/invisible while STA kept failing to
 // connect. Only used while there's no known-good Wi-Fi connection.
 static void startApOnly() {
+  // Clean transition out of whatever STA state a failed connect attempt
+  // left behind before starting the AP - switching mode directly on top of
+  // a still-settling STA attempt can make softAP() fail silently.
+  WiFi.disconnect(true);
+  WiFi.mode(WIFI_OFF);
+  delay(200);
   WiFi.mode(WIFI_AP);
-  WiFi.softAP(AP_SSID, AP_PASSWORD);
+
+  bool ok = false;
+  for (uint8_t attempt = 0; attempt < 3 && !ok; attempt++) {
+    ok = WiFi.softAP(AP_SSID, AP_PASSWORD);
+    if (!ok) {
+      Serial.println("softAP() failed, retrying...");
+      delay(300);
+    }
+  }
+
   apOnlyMode = true;
-  Serial.print("Config AP started: ");
+  Serial.print(ok ? "Config AP started: " : "Config AP FAILED to start: ");
   Serial.print(AP_SSID);
   Serial.print(" @ ");
   Serial.println(WiFi.softAPIP());
