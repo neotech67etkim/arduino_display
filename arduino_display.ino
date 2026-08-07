@@ -66,6 +66,9 @@ static unsigned long lastBlinkMs = 0;
 static const unsigned long BLINK_INTERVAL_MS = 500;
 static unsigned long lastStaAttemptMs = 0;
 static const unsigned long STA_RETRY_INTERVAL_MS = 30000;
+static bool apOnlyMode = false;
+static int staRetryFailCount = 0;
+static const int STA_RETRY_FAIL_THRESHOLD = 5; // ~2.5 min of failed retries before falling back to AP-only
 static bool restartPending = false;
 static unsigned long restartAtMs = 0;
 
@@ -128,34 +131,48 @@ static void startScroll(const char *text) {
   P.displayText(displayBuffer, PA_LEFT, settings.scrollSpeed, SCROLL_PAUSE_MS, PA_SCROLL_LEFT, PA_SCROLL_LEFT);
 }
 
-// Starts the always-on AP (for reaching the config page) plus, if
-// credentials are saved, an initial bounded attempt to join the home
-// network. Later reconnects happen in the background via serviceWiFi().
-static void startWiFi() {
-  WiFi.mode(WIFI_AP_STA);
+// Pure AP mode (no simultaneous STA) so the config portal is reliably
+// reachable - ESP32 AP+STA coexistence forces the AP to follow the STA's
+// channel, which made the AP flaky/invisible while STA kept failing to
+// connect. Only used while there's no known-good Wi-Fi connection.
+static void startApOnly() {
+  WiFi.mode(WIFI_AP);
   WiFi.softAP(AP_SSID, AP_PASSWORD);
+  apOnlyMode = true;
   Serial.print("Config AP started: ");
   Serial.print(AP_SSID);
   Serial.print(" @ ");
   Serial.println(WiFi.softAPIP());
+}
 
+// Bounded attempt to join the saved network in plain STA mode. Falls back
+// to the AP-only config portal if there's nothing saved yet or the attempt
+// fails. Later reconnects happen in the background via serviceWiFi().
+static void startWiFi() {
   if (settings.ssid.length() == 0) {
-    Serial.println("No saved Wi-Fi SSID yet, waiting for config page");
+    Serial.println("No saved Wi-Fi SSID yet, starting AP-only config portal");
+    startApOnly();
     return;
   }
 
   Serial.print("Connecting to ");
   Serial.println(settings.ssid);
+  WiFi.mode(WIFI_STA);
   WiFi.begin(settings.ssid.c_str(), settings.password.c_str());
 
   unsigned long start = millis();
-  while (WiFi.status() != WL_CONNECTED && millis() - start < 8000) {
+  while (WiFi.status() != WL_CONNECTED && millis() - start < 10000) {
     if (P.displayAnimate()) {
       P.displayReset();
     }
     delay(10);
   }
   lastStaAttemptMs = millis();
+
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("Initial connect failed, falling back to AP-only config portal");
+    startApOnly();
+  }
 }
 
 // Non-blocking: call every loop() to notice connect/disconnect transitions
@@ -165,6 +182,7 @@ static void serviceWiFi() {
 
   if (nowConnected && !staConnected) {
     staConnected = true;
+    staRetryFailCount = 0;
     Serial.print("Wi-Fi connected, IP: ");
     Serial.println(WiFi.localIP());
     configTime(0, 0, "pool.ntp.org", "time.nist.gov");
@@ -174,13 +192,24 @@ static void serviceWiFi() {
     startScroll("WIFI LOST");
   }
 
+  if (apOnlyMode) {
+    return; // sitting in the config portal; saving new settings reboots and retries
+  }
+
   if (!nowConnected && settings.ssid.length() > 0 &&
       millis() - lastStaAttemptMs >= STA_RETRY_INTERVAL_MS) {
     lastStaAttemptMs = millis();
+    staRetryFailCount++;
+
+    if (staRetryFailCount >= STA_RETRY_FAIL_THRESHOLD) {
+      Serial.println("Too many failed reconnects, falling back to AP-only config portal");
+      startApOnly();
+      return;
+    }
+
     Serial.println("Retrying Wi-Fi connection");
-    // Cleanly end any still-in-progress attempt first - calling begin()
-    // again while one is pending logs "cannot set config" and can destabilize
-    // the AP running alongside it in AP_STA mode.
+    // Cleanly end the previous attempt first - calling begin() again while
+    // one is still pending logs "cannot set config" in the driver.
     WiFi.disconnect();
     WiFi.begin(settings.ssid.c_str(), settings.password.c_str());
   }
