@@ -178,6 +178,10 @@ static void serviceWiFi() {
       millis() - lastStaAttemptMs >= STA_RETRY_INTERVAL_MS) {
     lastStaAttemptMs = millis();
     Serial.println("Retrying Wi-Fi connection");
+    // Cleanly end any still-in-progress attempt first - calling begin()
+    // again while one is pending logs "cannot set config" and can destabilize
+    // the AP running alongside it in AP_STA mode.
+    WiFi.disconnect();
     WiFi.begin(settings.ssid.c_str(), settings.password.c_str());
   }
 }
