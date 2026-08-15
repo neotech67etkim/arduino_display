@@ -433,6 +433,14 @@ void loop() {
     ESP.restart();
   }
 
+  static unsigned long lastHeapLogMs = 0;
+  if (millis() - lastHeapLogMs >= 15000) {
+    lastHeapLogMs = millis();
+    Serial.printf("[diag] uptime=%lus heap=%u minHeap=%u apOnly=%d staConn=%d\n",
+                  millis() / 1000, ESP.getFreeHeap(), ESP.getMinFreeHeap(),
+                  apOnlyMode, staConnected);
+  }
+
   serviceWiFi();
 
   if (!staConnected) {
