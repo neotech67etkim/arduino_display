@@ -153,6 +153,11 @@ static void startApOnly() {
     }
   }
 
+  // Modem sleep can cause the AP to miss beacon intervals once the main
+  // loop is busy (bit-banged SPI to the display), making it disappear from
+  // scans shortly after boot even though softAP() succeeded.
+  WiFi.setSleep(false);
+
   apOnlyMode = true;
   Serial.print(ok ? "Config AP started: " : "Config AP FAILED to start: ");
   Serial.print(AP_SSID);
@@ -173,6 +178,7 @@ static void startWiFi() {
   Serial.print("Connecting to ");
   Serial.println(settings.ssid);
   WiFi.mode(WIFI_STA);
+  WiFi.setSleep(false); // avoid missed beacons/laggy reconnects once loop() gets busy
   WiFi.begin(settings.ssid.c_str(), settings.password.c_str());
 
   unsigned long start = millis();
