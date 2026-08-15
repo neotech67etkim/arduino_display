@@ -75,4 +75,27 @@ page once it's running (see README "Web Configuration").
   of its own (only full power-cycle or a clean re-sent SPI init clears it).
 - `examples/wifi_text_scroll/` is a standalone bring-up sketch (not built by
   the scripts above) for testing display + Wi-Fi independent of the
-  Nightscout/config-page logic.
+  Nightscout/config-page logic. `examples/wifi_scan_test/` is a bare
+  `WiFi.scanNetworks()` sketch for isolating radio/hardware problems from
+  everything else.
+- **Never run Wi-Fi AP+STA simultaneously here** — ESP32 makes the SoftAP
+  follow the STA interface's channel, and a STA stuck retrying a failing
+  connection made the config AP flaky/invisible to real devices (confirmed
+  via `netsh wlan show networks` on the host PC while phones couldn't see
+  it at all). The firmware now tries STA alone first and only falls back to
+  a pure `WIFI_AP` config portal if that fails - see `startWiFi()`/
+  `startApOnly()`.
+- **Wi-Fi SSIDs are case-sensitive.** A silent all-attempts-fail loop with
+  no other symptoms was eventually traced to the saved SSID differing from
+  the real network only in capitalization (`skyiptime90d5` vs the actual
+  `skyiptime90D5`) - if STA never connects and the password is definitely
+  right, double check case before looking anywhere else.
+- Opening a serial connection resets these boards (`rst:0x15
+  USB_UART_CHIP_RESET` in the boot log) - repeatedly reconnecting to "check
+  on it" resets it into a fresh healthy state every time and will hide a
+  real problem that only shows up after the device has been running a
+  while. Open the port once and watch continuously instead of polling.
+- If the Wi-Fi config AP isn't reachable, settings can be read/written over
+  plain USB serial instead: `.\scripts\serial_config.ps1 -Port COM5` (or
+  Arduino IDE's Serial Monitor) — type `SHOW`, then `KEY=VALUE` lines, then
+  `SAVE`. See README "Serial config fallback".

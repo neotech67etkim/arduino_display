@@ -122,26 +122,39 @@ running on your machine would want up front.
 
 ## Web Configuration
 
-The device always runs its own Wi-Fi access point in addition to (optionally)
-being joined to your home network, so the config page is reachable no matter
-what:
+At boot, the device tries to join the saved Wi-Fi network. If that fails (or
+nothing's saved yet), it switches to a standalone config access point
+instead of running Wi-Fi client + AP at the same time — ESP32 AP+STA
+coexistence forces the AP to follow the STA interface's channel, which made
+the config AP flaky/invisible while a connection kept failing.
 
 1. Connect your phone/laptop to Wi-Fi network **`GlucoseDisplay-Setup`**
    (password `glucose123` — change `AP_SSID`/`AP_PASSWORD` in `config.h`
    before flashing if you want different ones).
 2. Open **`http://192.168.4.1`** in a browser.
-3. Fill in your home Wi-Fi SSID/password, Nightscout URL/token, alarm
-   thresholds, brightness, and scroll speed, then **Save & Restart**.
+3. Fill in your home Wi-Fi SSID/password (Wi-Fi SSIDs are case-sensitive —
+   double check capitalization), Nightscout URL/token, alarm thresholds,
+   brightness, and scroll speed, then **Save & Restart**.
 
-The device reboots, joins your home Wi-Fi, and starts polling Nightscout —
-while still keeping the `GlucoseDisplay-Setup` AP up, so you can always get
-back to this page (e.g. `http://192.168.4.1`, or the device's normal IP
-shown at the top of the page) to change settings later without re-flashing.
+The device reboots and tries the new settings. If it connects, the AP shuts
+off and the device runs on your Wi-Fi normally; if reconnects keep failing
+in the background, it automatically falls back to the AP-only config portal
+again after a few minutes so you're never permanently locked out.
 
-If the saved Wi-Fi credentials ever stop working (password changed, moved
-to a new router), the matrix scrolls a `SETUP: WiFi '...' -> 192.168.4.1`
-message and keeps retrying the saved network in the background — connect to
-the AP and update the credentials the same way.
+### Serial config fallback
+
+If the config AP isn't reachable for some reason (Wi-Fi driver quirks vary
+by environment), the same settings can be set over USB serial instead —
+useful for a quick fix without needing to join any Wi-Fi network at all.
+
+With just PowerShell (no Arduino IDE needed):
+```powershell
+.\scripts\serial_config.ps1 -Port COM5
+```
+Or open **Tools > Serial Monitor** in the Arduino IDE at `115200` baud. Type
+`SHOW` to print current values, `KEY=VALUE` to stage a change (keys: `ssid`
+`pass` `nsurl` `nstoken` `low` `high` `bright` `scroll`), then `SAVE` to
+persist and reboot with the new settings.
 
 ## Behavior
 

@@ -398,6 +398,77 @@ static void setupWebServer() {
   webServer.begin();
 }
 
+// USB-serial config fallback - useful whenever the Wi-Fi based config AP
+// isn't reachable. Type SHOW for current values, KEY=VALUE to stage a
+// change, SAVE to persist and reboot with the new settings.
+static void printSerialConfigHelp() {
+  Serial.println();
+  Serial.println("--- Serial config ---");
+  Serial.println("Keys: ssid pass nsurl nstoken low high bright scroll");
+  Serial.println("Usage: KEY=VALUE  (e.g. ssid=skyiptime90D5)");
+  Serial.println("Type SAVE to persist and restart. Type SHOW to reprint this.");
+  Serial.print("  ssid=");   Serial.println(settings.ssid);
+  Serial.print("  nsurl=");  Serial.println(settings.nsUrl);
+  Serial.print("  nstoken="); Serial.println(settings.nsToken);
+  Serial.print("  low=");    Serial.println(settings.lowThreshold);
+  Serial.print("  high=");   Serial.println(settings.highThreshold);
+  Serial.print("  bright="); Serial.println(settings.brightness);
+  Serial.print("  scroll="); Serial.println(settings.scrollSpeed);
+  Serial.println("  (pass not shown)");
+  Serial.println("---------------------");
+}
+
+static void processSerialConfigLine(const String &line) {
+  if (line.equalsIgnoreCase("SAVE")) {
+    saveSettings();
+    Serial.println("Saved. Restarting...");
+    restartPending = true;
+    restartAtMs = millis() + 500;
+    return;
+  }
+  if (line.equalsIgnoreCase("SHOW") || line.equalsIgnoreCase("CONFIG")) {
+    printSerialConfigHelp();
+    return;
+  }
+
+  int eq = line.indexOf('=');
+  if (eq < 0) {
+    Serial.println("Unknown command. Type SHOW for help.");
+    return;
+  }
+  String key = line.substring(0, eq);
+  String value = line.substring(eq + 1);
+  key.toLowerCase();
+  value.trim();
+
+  if (key == "ssid")        { settings.ssid = value; Serial.println("ssid staged (type SAVE to apply)"); }
+  else if (key == "pass")   { settings.password = value; Serial.println("pass staged (type SAVE to apply)"); }
+  else if (key == "nsurl")  { settings.nsUrl = value; Serial.println("nsurl staged"); }
+  else if (key == "nstoken") { settings.nsToken = value; Serial.println("nstoken staged"); }
+  else if (key == "low")    { settings.lowThreshold = value.toInt(); Serial.println("low staged"); }
+  else if (key == "high")   { settings.highThreshold = value.toInt(); Serial.println("high staged"); }
+  else if (key == "bright") { settings.brightness = constrain(value.toInt(), 0, 15); Serial.println("bright staged"); }
+  else if (key == "scroll") { settings.scrollSpeed = constrain(value.toInt(), 10, 500); Serial.println("scroll staged"); }
+  else { Serial.println("Unknown key. Type SHOW for help."); }
+}
+
+static void handleSerialConfig() {
+  static String lineBuf;
+  while (Serial.available()) {
+    char c = (char)Serial.read();
+    if (c == '\n' || c == '\r') {
+      lineBuf.trim();
+      if (lineBuf.length() > 0) {
+        processSerialConfigLine(lineBuf);
+      }
+      lineBuf = "";
+    } else {
+      lineBuf += c;
+      if (lineBuf.length() > 200) lineBuf = ""; // guard against runaway input
+    }
+  }
+}
+
 void setup() {
   Serial.begin(115200);
   loadSettings();
@@ -420,10 +491,13 @@ void setup() {
     snprintf(setupMsg, sizeof(setupMsg), "SETUP: WiFi '%s' -> %s", AP_SSID, WiFi.softAPIP().toString().c_str());
     startScroll(setupMsg);
   }
+
+  printSerialConfigHelp();
 }
 
 void loop() {
   webServer.handleClient();
+  handleSerialConfig();
 
   if (P.displayAnimate()) {
     P.displayReset();
