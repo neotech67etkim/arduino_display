@@ -508,7 +508,10 @@ void setup() {
   P.setIntensity(settings.brightness);
   P.setTextAlignment(PA_CENTER);
   P.displayClear();
-  startScroll("INITIALIZING...");
+  // Deliberately no "INITIALIZING"/"SETUP: WiFi..." boot text - config now
+  // happens over USB (tools/web_config.html), not by reading the AP name
+  // off the matrix, so the display just stays blank until real data
+  // arrives instead of getting stuck showing a setup message forever.
 
   // NOTE: webServer.begin() before any WiFi.mode() call crashes
   // ("assert failed: xQueueSemaphoreTake queue.c:1709") - the underlying
@@ -519,11 +522,6 @@ void setup() {
   if (WiFi.status() == WL_CONNECTED) {
     staConnected = true;
     configTime(0, 0, "pool.ntp.org", "time.nist.gov");
-    startScroll("CONNECTED - FETCHING...");
-  } else {
-    char setupMsg[96];
-    snprintf(setupMsg, sizeof(setupMsg), "SETUP: WiFi '%s' -> %s", AP_SSID, WiFi.softAPIP().toString().c_str());
-    startScroll(setupMsg);
   }
 
   printSerialConfigHelp();
