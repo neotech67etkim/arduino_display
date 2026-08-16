@@ -170,6 +170,16 @@ static void startApOnly() {
   // connection right after associating.
   dnsServer.start(53, "*", WiFi.softAPIP());
 
+  // Let the AP's beacon/radio subsystem settle for a couple seconds,
+  // untouched by anything else, before layering the web server on top -
+  // repeated reports had it dropping out almost immediately after startup.
+  for (int i = 0; i < 100; i++) {
+    if (P.displayAnimate()) {
+      P.displayReset();
+    }
+    delay(20);
+  }
+
   apOnlyMode = true;
   lastApRefreshMs = millis();
   Serial.print(ok ? "Config AP started: " : "Config AP FAILED to start: ");
@@ -500,8 +510,11 @@ void setup() {
   P.displayClear();
   startScroll("INITIALIZING...");
 
-  startWiFi();
+  // Web server is set up before Wi-Fi even starts - it doesn't depend on
+  // any interface being up yet, and this keeps the AP startup sequence
+  // free of anything else happening right on top of it.
   setupWebServer();
+  startWiFi();
 
   if (WiFi.status() == WL_CONNECTED) {
     staConnected = true;
