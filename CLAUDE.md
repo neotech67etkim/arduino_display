@@ -95,7 +95,15 @@ page once it's running (see README "Web Configuration").
   on it" resets it into a fresh healthy state every time and will hide a
   real problem that only shows up after the device has been running a
   while. Open the port once and watch continuously instead of polling.
-- If the Wi-Fi config AP isn't reachable, settings can be read/written over
-  plain USB serial instead: `.\scripts\serial_config.ps1 -Port COM5` (or
-  Arduino IDE's Serial Monitor) — type `SHOW`, then `KEY=VALUE` lines, then
-  `SAVE`. See README "Serial config fallback".
+- **The Wi-Fi config AP has been unreliable** in testing (visibility flakes,
+  and Android WPA2 auth sometimes fails outright) — `tools/web_config.html`
+  (Web Serial API, Chrome/Edge only, no install) is now the recommended
+  config path since it doesn't depend on Wi-Fi working at all: plug in via
+  USB, open the file, click connect, pick the port. It speaks the same
+  line protocol as `scripts/serial_config.ps1` / Serial Monitor (`SHOW`,
+  `KEY=VALUE`, `SAVE`) — see README "Configuration".
+- Found via an actual crash dump, not guessing: calling `webServer.begin()`
+  before any `WiFi.mode()` call has run asserts and reboots the board
+  (`assert failed: xQueueSemaphoreTake queue.c:1709`) - the network stack's
+  internal queues don't exist yet. `setupWebServer()` must stay after
+  `startWiFi()` in `setup()`.

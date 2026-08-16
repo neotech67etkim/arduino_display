@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>혈당 디스플레이 설정</title>
+<style>
+  body {
+    font-family: -apple-system, "Segoe UI", "Malgun Gothic", sans-serif;
+    max-width: 480px;
+    margin: 2em auto;
+    padding: 0 1.5em;
+    color: #222;
+  }
+  h1 { font-size: 1.4em; }
+  p.hint { color: #555; font-size: 0.9em; }
+  button {
+    font-size: 1em;
+    padding: 0.6em 1.2em;
+    margin: 0.5em 0;
+    cursor: pointer;
+    border-radius: 6px;
+    border: 1px solid #ccc;
+    background: #f5f5f5;
+  }
+  button#connectBtn { background: #2563eb; color: white; border: none; }
+  button#saveBtn { background: #16a34a; color: white; border: none; }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  label { display: block; margin-top: 1em; font-weight: bold; }
+  input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.5em;
+    font-size: 1em;
+    margin-top: 0.3em;
+  }
+  #status {
+    margin: 1em 0;
+    padding: 0.7em;
+    border-radius: 6px;
+    background: #eef;
+    font-size: 0.9em;
+  }
+  #status.error { background: #fee; color: #900; }
+  #status.ok { background: #efe; color: #060; }
+  #log {
+    margin-top: 1.5em;
+    background: #111;
+    color: #0f0;
+    font-family: monospace;
+    font-size: 0.8em;
+    padding: 0.7em;
+    height: 140px;
+    overflow-y: auto;
+    border-radius: 6px;
+    white-space: pre-wrap;
+  }
+  #formArea { display: none; }
+  #unsupported { display: none; background: #fee; padding: 1em; border-radius: 6px; }
+</style>
+</head>
+<body>
+  <h1>혈당 디스플레이 설정</h1>
+  <p class="hint">USB 케이블로 장치를 컴퓨터에 연결한 뒤 아래 버튼을 누르세요.</p>
+
+  <div id="unsupported">
+    이 브라우저는 지원하지 않습니다. <b>Chrome</b> 또는 <b>Edge</b> 브라우저로 이 파일을 열어주세요.
+  </div>
+
+  <button id="connectBtn">USB 장치 연결</button>
+  <div id="status"></div>
+
+  <div id="formArea">
+    <label>Wi-Fi 이름 (SSID)</label>
+    <input id="ssid" placeholder="집 와이파이 이름">
+
+    <label>Wi-Fi 비밀번호</label>
+    <input id="pass" type="text" placeholder="비워두면 기존 비밀번호 유지">
+
+    <label>Nightscout 주소 (선택)</label>
+    <input id="nsurl" placeholder="https://your-site.example.com">
+
+    <label>Nightscout 토큰 (선택)</label>
+    <input id="nstoken">
+
+    <label>저혈당 경고 기준 (mg/dL)</label>
+    <input id="low" type="number" min="40" max="400">
+
+    <label>고혈당 경고 기준 (mg/dL)</label>
+    <input id="high" type="number" min="40" max="400">
+
+    <label>화면 밝기 (0~15)</label>
+    <input id="bright" type="number" min="0" max="15">
+
+    <label>스크롤 속도 (숫자가 작을수록 빠름)</label>
+    <input id="scroll" type="number" min="10" max="500">
+
+    <button id="saveBtn">저장하고 재시작</button>
+  </div>
+
+  <div id="log"></div>
+
+<script>
+const statusEl = document.getElementById('status');
+const logEl = document.getElementById('log');
+const connectBtn = document.getElementById('connectBtn');
+const saveBtn = document.getElementById('saveBtn');
+const formArea = document.getElementById('formArea');
+
+let port, reader, writer, readableClosed;
+let lineBuffer = '';
+
+function log(msg) {
+  logEl.textContent += msg + '\n';
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+function setStatus(msg, kind) {
+  statusEl.textContent = msg;
+  statusEl.className = kind || '';
+}
+
+if (!('serial' in navigator)) {
+  document.getElementById('unsupported').style.display = 'block';
+  connectBtn.disabled = true;
+}
+
+async function writeLine(text) {
+  await writer.write(new TextEncoder().encode(text + '\n'));
+  log('> ' + text);
+}
+
+function handleIncomingLine(line) {
+  log(line);
+  const m = line.match(/^\s*(ssid|nsurl|nstoken|low|high|bright|scroll)=(.*)$/);
+  if (m) {
+    const el = document.getElementById(m[1]);
+    if (el) el.value = m[2];
+  }
+  if (/^Saved\. Restarting/.test(line)) {
+    setStatus('저장되었습니다. 장치가 재시작됩니다 - USB 연결이 잠시 끊길 수 있습니다.', 'ok');
+  }
+}
+
+async function readLoop() {
+  const decoder = new TextDecoderStream();
+  readableClosed = port.readable.pipeTo(decoder.writable);
+  reader = decoder.readable.getReader();
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      lineBuffer += value;
+      let idx;
+      while ((idx = lineBuffer.indexOf('\n')) >= 0) {
+        const line = lineBuffer.slice(0, idx).replace(/\r$/, '');
+        lineBuffer = lineBuffer.slice(idx + 1);
+        if (line.length > 0) handleIncomingLine(line);
+      }
+    }
+  } catch (e) {
+    log('[connection closed]');
+  }
+}
+
+connectBtn.addEventListener('click', async () => {
+  try {
+    port = await navigator.serial.requestPort();
+    await port.open({ baudRate: 115200 });
+    writer = port.writable.getWriter();
+
+    readLoop();
+
+    connectBtn.disabled = true;
+    formArea.style.display = 'block';
+    setStatus('연결됨. 현재 설정을 불러오는 중...', 'ok');
+
+    await new Promise(r => setTimeout(r, 300));
+    await writeLine('SHOW');
+  } catch (e) {
+    setStatus('연결 실패: ' + e.message, 'error');
+  }
+});
+
+saveBtn.addEventListener('click', async () => {
+  saveBtn.disabled = true;
+  try {
+    const fields = ['ssid', 'pass', 'nsurl', 'nstoken', 'low', 'high', 'bright', 'scroll'];
+    for (const key of fields) {
+      const val = document.getElementById(key).value;
+      if (key === 'pass' && val.trim() === '') continue; // don't overwrite saved password with blank
+      await writeLine(key + '=' + val);
+      await new Promise(r => setTimeout(r, 100));
+    }
+    await writeLine('SAVE');
+    setStatus('저장 명령을 보냈습니다...', 'ok');
+  } catch (e) {
+    setStatus('저장 실패: ' + e.message, 'error');
+  } finally {
+    saveBtn.disabled = false;
+  }
+});
+</script>
+</body>
+</html>

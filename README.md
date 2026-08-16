@@ -120,41 +120,55 @@ See `CLAUDE.md` for the full command reference and project-specific gotchas
 (USB CDC On Boot, wiring, hardware type, etc.) that a Claude Code session
 running on your machine would want up front.
 
-## Web Configuration
+## Configuration
 
-At boot, the device tries to join the saved Wi-Fi network. If that fails (or
-nothing's saved yet), it switches to a standalone config access point
-instead of running Wi-Fi client + AP at the same time — ESP32 AP+STA
-coexistence forces the AP to follow the STA interface's channel, which made
-the config AP flaky/invisible while a connection kept failing.
+### USB config page (recommended - works on any computer, no install)
 
-1. Connect your phone/laptop to Wi-Fi network **`GlucoseDisplay-Setup`**
-   (password `glucose123` — change `AP_SSID`/`AP_PASSWORD` in `config.h`
-   before flashing if you want different ones).
+`tools/web_config.html` is a self-contained page that talks to the device
+over USB using the browser's [Web Serial API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Serial_API) -
+no app install, no drivers, no joining any Wi-Fi network. This is the
+recommended way to hand the device to someone non-technical.
+
+1. Requires **Chrome or Edge** (Web Serial isn't supported in Firefox/Safari).
+2. Plug the device into the computer via USB.
+3. Open `tools/web_config.html` (just double-click it).
+4. Click **USB 장치 연결**, and pick the device's port from the browser's
+   popup.
+5. The form fills in with the device's current settings. Edit Wi-Fi
+   SSID/password (SSIDs are case-sensitive), Nightscout URL/token, alarm
+   thresholds, brightness, and scroll speed, then click **저장하고 재시작**.
+
+The device saves the settings and restarts, then tries to join that Wi-Fi
+network.
+
+### Wi-Fi config AP (fallback)
+
+The device also runs a standalone config access point whenever it isn't
+connected to Wi-Fi, reachable from a phone/laptop without USB:
+
+1. Connect to Wi-Fi network **`GlucoseDisplay-Setup`** (password
+   `glucose123` — change `AP_SSID`/`AP_PASSWORD` in `config.h` before
+   flashing if you want different ones).
 2. Open **`http://192.168.4.1`** in a browser.
-3. Fill in your home Wi-Fi SSID/password (Wi-Fi SSIDs are case-sensitive —
-   double check capitalization), Nightscout URL/token, alarm thresholds,
-   brightness, and scroll speed, then **Save & Restart**.
+3. Fill in the same settings as above, then **Save & Restart**.
 
-The device reboots and tries the new settings. If it connects, the AP shuts
-off and the device runs on your Wi-Fi normally; if reconnects keep failing
-in the background, it automatically falls back to the AP-only config portal
-again after a few minutes so you're never permanently locked out.
+In testing this was less reliable than the USB page (Wi-Fi AP visibility
+and Android WPA2 handshake behavior vary a lot by phone/environment), so
+prefer the USB page when a computer is available.
 
-### Serial config fallback
+If the saved Wi-Fi credentials stop working later (password changed, moved
+to a new router), the device automatically falls back to this AP-only mode
+again after a few minutes of failed reconnects, so it's never permanently
+locked out.
 
-If the config AP isn't reachable for some reason (Wi-Fi driver quirks vary
-by environment), the same settings can be set over USB serial instead —
-useful for a quick fix without needing to join any Wi-Fi network at all.
+### Serial protocol (advanced)
 
-With just PowerShell (no Arduino IDE needed):
-```powershell
-.\scripts\serial_config.ps1 -Port COM5
-```
-Or open **Tools > Serial Monitor** in the Arduino IDE at `115200` baud. Type
-`SHOW` to print current values, `KEY=VALUE` to stage a change (keys: `ssid`
-`pass` `nsurl` `nstoken` `low` `high` `bright` `scroll`), then `SAVE` to
-persist and reboot with the new settings.
+Both config methods above talk the same simple line-based protocol over
+USB serial (115200 baud), which can also be driven directly — from Arduino
+IDE's Serial Monitor, or `.\scripts\serial_config.ps1 -Port COM5` (plain
+PowerShell, no IDE needed): type `SHOW` for current values, `KEY=VALUE` to
+stage a change (keys: `ssid` `pass` `nsurl` `nstoken` `low` `high` `bright`
+`scroll`), then `SAVE` to persist and reboot.
 
 ## Behavior
 
