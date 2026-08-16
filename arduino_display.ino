@@ -16,7 +16,6 @@
 #include <WebServer.h>
 #include <DNSServer.h>
 #include <Preferences.h>
-#include <esp_wifi.h>
 #include <ArduinoJson.h>
 #include <MD_Parola.h>
 #include <MD_MAX72XX.h>
@@ -157,18 +156,6 @@ static void startApOnly() {
     if (!ok) {
       Serial.println("softAP() failed, retrying...");
       delay(300);
-    }
-  }
-
-  // Disable PMF (802.11w) on the AP - some Android WPA2 supplicants fail
-  // the 4-way handshake ("authentication problem") against ESP-IDF's
-  // default PMF-capable AP config even with the correct password.
-  {
-    wifi_config_t apConfig;
-    if (esp_wifi_get_config(WIFI_IF_AP, &apConfig) == ESP_OK) {
-      apConfig.ap.pmf_cfg.capable = false;
-      apConfig.ap.pmf_cfg.required = false;
-      esp_wifi_set_config(WIFI_IF_AP, &apConfig);
     }
   }
 
