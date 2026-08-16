@@ -510,11 +510,11 @@ void setup() {
   P.displayClear();
   startScroll("INITIALIZING...");
 
-  // Web server is set up before Wi-Fi even starts - it doesn't depend on
-  // any interface being up yet, and this keeps the AP startup sequence
-  // free of anything else happening right on top of it.
-  setupWebServer();
+  // NOTE: webServer.begin() before any WiFi.mode() call crashes
+  // ("assert failed: xQueueSemaphoreTake queue.c:1709") - the underlying
+  // network stack isn't initialized yet, so this must run after startWiFi().
   startWiFi();
+  setupWebServer();
 
   if (WiFi.status() == WL_CONNECTED) {
     staConnected = true;
