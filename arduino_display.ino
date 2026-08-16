@@ -14,6 +14,7 @@
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
 #include <WebServer.h>
+#include <DNSServer.h>
 #include <Preferences.h>
 #include <ArduinoJson.h>
 #include <MD_Parola.h>
@@ -34,6 +35,7 @@
 
 MD_Parola P = MD_Parola(HARDWARE_TYPE, DATA_PIN, CLK_PIN, CS_PIN, MAX_DEVICES);
 WebServer webServer(80);
+DNSServer dnsServer;
 Preferences prefs;
 
 struct Settings {
@@ -161,6 +163,12 @@ static void startApOnly() {
   // loop is busy (bit-banged SPI to the display), making it disappear from
   // scans shortly after boot even though softAP() succeeded.
   WiFi.setSleep(false);
+
+  // Captive portal: answer every DNS query with our own IP so phones/laptops
+  // recognize this as a "sign in to network" hotspot and open the config
+  // page automatically, instead of flagging "no internet" and dropping the
+  // connection right after associating.
+  dnsServer.start(53, "*", WiFi.softAPIP());
 
   apOnlyMode = true;
   lastApRefreshMs = millis();
@@ -511,6 +519,10 @@ void setup() {
 void loop() {
   webServer.handleClient();
   handleSerialConfig();
+
+  if (apOnlyMode) {
+    dnsServer.processNextRequest();
+  }
 
   if (P.displayAnimate()) {
     P.displayReset();
