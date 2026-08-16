@@ -14,7 +14,6 @@
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
 #include <WebServer.h>
-#include <DNSServer.h>
 #include <Preferences.h>
 #include <ArduinoJson.h>
 #include <MD_Parola.h>
@@ -35,7 +34,6 @@
 
 MD_Parola P = MD_Parola(HARDWARE_TYPE, DATA_PIN, CLK_PIN, CS_PIN, MAX_DEVICES);
 WebServer webServer(80);
-DNSServer dnsServer;
 Preferences prefs;
 
 struct Settings {
@@ -68,11 +66,6 @@ static unsigned long lastBlinkMs = 0;
 static const unsigned long BLINK_INTERVAL_MS = 500;
 static unsigned long lastStaAttemptMs = 0;
 static const unsigned long STA_RETRY_INTERVAL_MS = 30000;
-static bool apOnlyMode = false;
-static int staRetryFailCount = 0;
-static const int STA_RETRY_FAIL_THRESHOLD = 5; // ~2.5 min of failed retries before falling back to AP-only
-static unsigned long lastApRefreshMs = 0;
-static const unsigned long AP_REFRESH_INTERVAL_MS = 5UL * 60UL * 1000UL; // defensive re-assert every 5 min
 static bool restartPending = false;
 static unsigned long restartAtMs = 0;
 
@@ -135,66 +128,36 @@ static void startScroll(const char *text) {
   P.displayText(displayBuffer, PA_LEFT, settings.scrollSpeed, SCROLL_PAUSE_MS, PA_SCROLL_LEFT, PA_SCROLL_LEFT);
 }
 
-// Pure AP mode (no simultaneous STA) so the config portal is reliably
-// reachable - ESP32 AP+STA coexistence forces the AP to follow the STA's
-// channel, which made the AP flaky/invisible while STA kept failing to
-// connect. Only used while there's no known-good Wi-Fi connection.
-static void startApOnly() {
-  // Clean transition out of whatever STA state a failed connect attempt
-  // left behind before starting the AP - switching mode directly on top of
-  // a still-settling STA attempt can make softAP() fail silently.
-  WiFi.disconnect(true);
-  WiFi.mode(WIFI_OFF);
-  delay(200);
-  WiFi.mode(WIFI_AP);
-
-  bool ok = false;
-  for (uint8_t attempt = 0; attempt < 3 && !ok; attempt++) {
-    // Explicit channel (avoid the very common default channel 1 that most
-    // ISP routers also default to), not hidden, up to 4 clients.
-    ok = WiFi.softAP(AP_SSID, AP_PASSWORD, AP_CHANNEL, 0, 4);
-    if (!ok) {
-      Serial.println("softAP() failed, retrying...");
-      delay(300);
-    }
+static void onWiFiEvent(WiFiEvent_t event, WiFiEventInfo_t info) {
+  if (event == ARDUINO_EVENT_WIFI_STA_DISCONNECTED) {
+    Serial.print("[wifi event] disconnected, reason=");
+    Serial.print(info.wifi_sta_disconnected.reason);
+    Serial.print(" (");
+    Serial.print(WiFi.disconnectReasonName((wifi_err_reason_t)info.wifi_sta_disconnected.reason));
+    Serial.println(")");
   }
-
-  // Modem sleep can cause the AP to miss beacon intervals once the main
-  // loop is busy (bit-banged SPI to the display), making it disappear from
-  // scans shortly after boot even though softAP() succeeded.
-  WiFi.setSleep(false);
-
-  // Captive portal: answer every DNS query with our own IP so phones/laptops
-  // recognize this as a "sign in to network" hotspot and open the config
-  // page automatically, instead of flagging "no internet" and dropping the
-  // connection right after associating.
-  dnsServer.start(53, "*", WiFi.softAPIP());
-
-  // Let the AP's beacon/radio subsystem settle for a couple seconds,
-  // untouched by anything else, before layering the web server on top -
-  // repeated reports had it dropping out almost immediately after startup.
-  for (int i = 0; i < 100; i++) {
-    if (P.displayAnimate()) {
-      P.displayReset();
-    }
-    delay(20);
-  }
-
-  apOnlyMode = true;
-  lastApRefreshMs = millis();
-  Serial.print(ok ? "Config AP started: " : "Config AP FAILED to start: ");
-  Serial.print(AP_SSID);
-  Serial.print(" @ ");
-  Serial.println(WiFi.softAPIP());
 }
 
-// Bounded attempt to join the saved network in plain STA mode. Falls back
-// to the AP-only config portal if there's nothing saved yet or the attempt
-// fails. Later reconnects happen in the background via serviceWiFi().
+static const char *wifiStatusName(wl_status_t s) {
+  switch (s) {
+    case WL_IDLE_STATUS:     return "IDLE";
+    case WL_NO_SSID_AVAIL:   return "NO_SSID_AVAIL";
+    case WL_SCAN_COMPLETED:  return "SCAN_COMPLETED";
+    case WL_CONNECTED:       return "CONNECTED";
+    case WL_CONNECT_FAILED:  return "CONNECT_FAILED (often wrong password)";
+    case WL_CONNECTION_LOST: return "CONNECTION_LOST";
+    case WL_DISCONNECTED:    return "DISCONNECTED";
+    default:                 return "UNKNOWN";
+  }
+}
+
+// Bounded attempt to join the saved network in plain STA mode. No AP
+// fallback - Wi-Fi credentials are set over USB (serial protocol / the
+// tools/web_config.html page), not by joining a config hotspot. If this
+// fails, serviceWiFi() just keeps retrying in the background.
 static void startWiFi() {
   if (settings.ssid.length() == 0) {
-    Serial.println("No saved Wi-Fi SSID yet, starting AP-only config portal");
-    startApOnly();
+    Serial.println("No saved Wi-Fi SSID yet - set one over USB (SHOW/ssid=.../SAVE)");
     return;
   }
 
@@ -202,6 +165,11 @@ static void startWiFi() {
   Serial.println(settings.ssid);
   WiFi.mode(WIFI_STA);
   WiFi.setSleep(false); // avoid missed beacons/laggy reconnects once loop() gets busy
+  // The IDF driver's own built-in auto-reconnect was firing many times a
+  // second in a tight loop (repeated AUTH_EXPIRE), racing our own retry
+  // logic and never giving a single attempt time to finish authenticating.
+  // We control all reconnects ourselves via serviceWiFi() instead.
+  WiFi.setAutoReconnect(false);
   WiFi.begin(settings.ssid.c_str(), settings.password.c_str());
 
   unsigned long start = millis();
@@ -212,11 +180,8 @@ static void startWiFi() {
     delay(10);
   }
   lastStaAttemptMs = millis();
-
-  if (WiFi.status() != WL_CONNECTED) {
-    Serial.println("Initial connect failed, falling back to AP-only config portal");
-    startApOnly();
-  }
+  Serial.print("Wi-Fi status after initial attempt: ");
+  Serial.println(wifiStatusName(WiFi.status()));
 }
 
 // Non-blocking: call every loop() to notice connect/disconnect transitions
@@ -226,7 +191,6 @@ static void serviceWiFi() {
 
   if (nowConnected && !staConnected) {
     staConnected = true;
-    staRetryFailCount = 0;
     Serial.print("Wi-Fi connected, IP: ");
     Serial.println(WiFi.localIP());
     configTime(0, 0, "pool.ntp.org", "time.nist.gov");
@@ -236,33 +200,23 @@ static void serviceWiFi() {
     startScroll("WIFI LOST");
   }
 
-  if (apOnlyMode) {
-    // Defensive: periodically re-assert the AP in case it ever silently
-    // drops out during a long idle period. Re-calling softAP() with the
-    // same settings is a safe no-op when it's already up.
-    if (millis() - lastApRefreshMs >= AP_REFRESH_INTERVAL_MS) {
-      lastApRefreshMs = millis();
-      bool ok = WiFi.softAP(AP_SSID, AP_PASSWORD, AP_CHANNEL, 0, 4);
-      Serial.println(ok ? "[ap] refreshed" : "[ap] refresh FAILED");
-    }
-    return; // sitting in the config portal; saving new settings reboots and retries
-  }
-
   if (!nowConnected && settings.ssid.length() > 0 &&
       millis() - lastStaAttemptMs >= STA_RETRY_INTERVAL_MS) {
     lastStaAttemptMs = millis();
-    staRetryFailCount++;
+    Serial.print("Retrying Wi-Fi connection (was: ");
+    Serial.print(wifiStatusName(WiFi.status()));
+    Serial.println(")");
 
-    if (staRetryFailCount >= STA_RETRY_FAIL_THRESHOLD) {
-      Serial.println("Too many failed reconnects, falling back to AP-only config portal");
-      startApOnly();
-      return;
+    // Cleanly end the previous attempt and wait for it to actually settle
+    // before starting a new one - calling begin() again too soon after
+    // disconnect() logs "cannot set config" and the new attempt seems to
+    // never properly take.
+    WiFi.disconnect();
+    unsigned long dcStart = millis();
+    while (WiFi.status() != WL_DISCONNECTED && millis() - dcStart < 500) {
+      delay(10);
     }
 
-    Serial.println("Retrying Wi-Fi connection");
-    // Cleanly end the previous attempt first - calling begin() again while
-    // one is still pending logs "cannot set config" in the driver.
-    WiFi.disconnect();
     WiFi.begin(settings.ssid.c_str(), settings.password.c_str());
   }
 }
@@ -502,6 +456,7 @@ static void handleSerialConfig() {
 
 void setup() {
   Serial.begin(115200);
+  WiFi.onEvent(onWiFiEvent);
   loadSettings();
 
   P.begin();
@@ -533,10 +488,6 @@ void loop() {
   webServer.handleClient();
   handleSerialConfig();
 
-  if (apOnlyMode) {
-    dnsServer.processNextRequest();
-  }
-
   if (P.displayAnimate()) {
     P.displayReset();
   }
@@ -548,9 +499,9 @@ void loop() {
   static unsigned long lastHeapLogMs = 0;
   if (millis() - lastHeapLogMs >= 15000) {
     lastHeapLogMs = millis();
-    Serial.printf("[diag] uptime=%lus heap=%u minHeap=%u apOnly=%d staConn=%d\n",
+    Serial.printf("[diag] uptime=%lus heap=%u minHeap=%u staConn=%d\n",
                   millis() / 1000, ESP.getFreeHeap(), ESP.getMinFreeHeap(),
-                  apOnlyMode, staConnected);
+                  staConnected);
   }
 
   serviceWiFi();
