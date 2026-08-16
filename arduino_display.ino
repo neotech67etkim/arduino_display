@@ -69,6 +69,8 @@ static const unsigned long STA_RETRY_INTERVAL_MS = 30000;
 static bool apOnlyMode = false;
 static int staRetryFailCount = 0;
 static const int STA_RETRY_FAIL_THRESHOLD = 5; // ~2.5 min of failed retries before falling back to AP-only
+static unsigned long lastApRefreshMs = 0;
+static const unsigned long AP_REFRESH_INTERVAL_MS = 5UL * 60UL * 1000UL; // defensive re-assert every 5 min
 static bool restartPending = false;
 static unsigned long restartAtMs = 0;
 
@@ -146,7 +148,9 @@ static void startApOnly() {
 
   bool ok = false;
   for (uint8_t attempt = 0; attempt < 3 && !ok; attempt++) {
-    ok = WiFi.softAP(AP_SSID, AP_PASSWORD);
+    // Explicit channel (avoid the very common default channel 1 that most
+    // ISP routers also default to), not hidden, up to 4 clients.
+    ok = WiFi.softAP(AP_SSID, AP_PASSWORD, AP_CHANNEL, 0, 4);
     if (!ok) {
       Serial.println("softAP() failed, retrying...");
       delay(300);
@@ -159,6 +163,7 @@ static void startApOnly() {
   WiFi.setSleep(false);
 
   apOnlyMode = true;
+  lastApRefreshMs = millis();
   Serial.print(ok ? "Config AP started: " : "Config AP FAILED to start: ");
   Serial.print(AP_SSID);
   Serial.print(" @ ");
@@ -214,6 +219,14 @@ static void serviceWiFi() {
   }
 
   if (apOnlyMode) {
+    // Defensive: periodically re-assert the AP in case it ever silently
+    // drops out during a long idle period. Re-calling softAP() with the
+    // same settings is a safe no-op when it's already up.
+    if (millis() - lastApRefreshMs >= AP_REFRESH_INTERVAL_MS) {
+      lastApRefreshMs = millis();
+      bool ok = WiFi.softAP(AP_SSID, AP_PASSWORD, AP_CHANNEL, 0, 4);
+      Serial.println(ok ? "[ap] refreshed" : "[ap] refresh FAILED");
+    }
     return; // sitting in the config portal; saving new settings reboots and retries
   }
 

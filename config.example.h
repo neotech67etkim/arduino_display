@@ -13,11 +13,15 @@
 #define WIFI_SSID     "YOUR_WIFI_SSID"
 #define WIFI_PASSWORD "YOUR_WIFI_PASSWORD"
 
-// Always-on config access point. Connect to this SSID any time (even
-// alongside your home Wi-Fi) to reach the setup page at 192.168.4.1.
+// Config access point, used whenever the device isn't connected to your
+// Wi-Fi (first boot, or the saved network becomes unreachable). Connect to
+// this SSID to reach the setup page at 192.168.4.1.
 // Password must be 8+ characters (WPA2 minimum).
 #define AP_SSID     "GlucoseDisplay-Setup"
 #define AP_PASSWORD "glucose123"
+// 2.4GHz channel 1-11. Channel 1 is extremely commonly used by default ISP
+// routers (crowded); 6 is usually clearer.
+#define AP_CHANNEL 6
 
 // ---- Nightscout (initial defaults only, see note above) ----
 // Must start with "https://", no trailing slash.
