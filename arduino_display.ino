@@ -517,6 +517,8 @@ void setup() {
 }
 
 void loop() {
+  delay(1); // explicit scheduler yield so the Wi-Fi/LWIP tasks get regular CPU time
+
   webServer.handleClient();
   handleSerialConfig();
 
